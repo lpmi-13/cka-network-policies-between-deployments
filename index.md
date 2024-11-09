@@ -2,7 +2,7 @@
 title: 'CKA practice exam scenario: configure network policies to restrict traffic between pods'
 
 description: |
-  This exercise tests your ability to configure kubernetes network policies to make sure only pods with specific labels can communicate with each other.
+  This exercise tests your ability to configure kubernetes network nolicies to make sure only pods with specific labels can communicate with each other.
 
 kind: challenge
 
@@ -40,6 +40,14 @@ tagz:
   - network-policies
 
 tasks:
+  verify_namespace:
+    run: |
+      if [ $(kubectl get namespace | grep app | wc -l) -gt 0 ]; then
+        echo "you created it!"
+        exit 0
+      else
+        exit 1
+      fi
   verify_deployments:
     run: |
       if [ $(kubectl get deployment -n app frontend -o jsonpath='{.status.replicas}') -eq 2 ] && \
@@ -67,18 +75,19 @@ tasks:
       FRONTEND_POD_IP=$(kubectl get pod -n app -l role=frontend -o jsonpath='{.items[0].status.podIP}')
       BACKEND_POD_WITH_ROLE=$(kubectl get pod -n app -l role=backend -o jsonpath='{.items[0].metadata.name}')
       BACKEND_POD_WITH_ROLE_IP=$(kubectl get pod -n app -l role=backend -o jsonpath='{.items[0].status.podIP}')
-      BACKEND_POD_WITHOUT_ROLE=$(kubectl get pod -n app -l "tier=api,!role" -o jsonpath='{.items[0].metadata.name}')
-      BACKEND_POD_WITHOUT_ROLE_IP=$(kubectl get pod -n app -l "tier=api,!role" -o jsonpath='{.items[0].status.podIP}')
+      BACKEND_POD_WITHOUT_ROLE=$(kubectl get pod -n app -l "tier=api,role!=backend" -o jsonpath='{.items[0].metadata.name}')
+      BACKEND_POD_WITHOUT_ROLE_IP=$(kubectl get pod -n app -l "tier=api,role!=backend" -o jsonpath='{.items[0].status.podIP}')
       
       # Test connectivity from frontend to both backend pods
       FRONTEND_TO_BACKEND=$(kubectl -n app exec $FRONTEND_POD -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $BACKEND_POD_WITH_ROLE_IP:8000)
-      FRONTEND_TO_BACKEND=$(kubectl -n app exec $FRONTEND_POD -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $BACKEND_POD_WITHOUT_ROLE_IP:8000)
+      FRONTEND_TO_BACKEND_WITHOUT_ROLE=$(kubectl -n app exec $FRONTEND_POD -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $BACKEND_POD_WITHOUT_ROLE_IP:8000)
       
       # Test connectivity from both types of backend pods to frontend pod
       BACKEND_WITH_ROLE_TO_FRONTEND=$(kubectl -n app exec $BACKEND_POD_WITH_ROLE -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $FRONTEND_POD_IP:80)
       BACKEND_WITHOUT_ROLE_TO_FRONTEND=$(kubectl -n app exec $BACKEND_POD_WITHOUT_ROLE -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $FRONTEND_POD_IP:80 || echo "timeout")
       
       if [ "$FRONTEND_TO_BACKEND" -eq 200 ] && \
+         [ "$FRONTEND_TO_BACKEND_WITHOUT_ROLE" -eq 200 ] && \
          [ "$BACKEND_WITH_ROLE_TO_FRONTEND" -eq 200 ] && \
          [ "$BACKEND_WITHOUT_ROLE_TO_FRONTEND" = "timeout" ]; then
          echo "Network policies configured correctly!"
@@ -93,7 +102,33 @@ In this exercise, you will configure network policies to control traffic flow be
 
 <img src="__static__/pod-networking-with-labels.png" style="margin: 0px auto; max-width: 600px; width: 100%" alt="Diagram showing desired network policy configuration between frontend and backend pods">
 
-First, create a namespace called "app", create two deployments:
+First, create a namespace called "app":
+
+::simple-task
+---
+:tasks: tasks
+:name: verify_namespace
+---
+#active
+Waiting for namespace to be created...
+
+#completed
+Good, the namespace is ready to go.
+::
+
+
+::hint-box
+---
+:summary: Hint 1
+---
+```bash
+# Create namespace
+kubectl create namespace app
+```
+::
+
+Now, create two deployments in that namespace.
+
 1. Frontend:
    - Deployment "frontend" with 2 replicas running `nginx:1.20`
 2. Backend:
@@ -113,14 +148,11 @@ Great! Both deployments are running correctly.
 
 ::hint-box
 ---
-:summary: Hint 1
+:summary: Hint 2
 ---
 ```bash
-# Create namespace
-kubectl create namespace app
-
 # Create deployments
-kubectl create deployment app -n app --image=nginx:1.20 --replicas=2
+kubectl create deployment frontend -n app --image=nginx:1.20 --replicas=2
 kubectl create deployment backend -n app --image=leskis/default-go --replicas=2
 ```
 ::
@@ -144,7 +176,7 @@ Perfect! All pods are properly labeled.
 
 ::hint-box
 ---
-:summary: Hint 2
+:summary: Hint 3
 ---
 ```bash
 # Label all frontend pods
@@ -163,7 +195,7 @@ kubectl label pod -n app $BACKEND_POD role=backend
 
 Finally, create network policies to ensure:
 1. All frontend pods can send traffic to any backend pod with label `tier=api` on port 8000
-2. Only the backend pod with label `role=backend` can send traffic to frontend pods with label `role=frontend` on port 80
+2. Only the backend pod with label role=backend can send traffic to frontend pods with label `role=frontend` on port 80
 3. All other traffic should be denied by default
 
 ::simple-task
@@ -180,7 +212,7 @@ Excellent! The network policies are correctly configured and enforcing the desir
 
 ::hint-box
 ---
-:summary: Hint 3
+:summary: Hint 4
 ---
 Create two network policies:
 ```yaml
