@@ -26,7 +26,7 @@ playgroundOptions:
 cover: __static__/pod-networking-with-labels.png
 
 createdAt: 2024-11-03
-updatedAt: 2024-11-03
+updatedAt: 2024-12-10
 
 difficulty: easy
 
@@ -43,7 +43,7 @@ tasks:
   verify_namespace:
     run: |
       if [ $(kubectl get namespace | grep app | wc -l) -gt 0 ]; then
-        echo "you created it!"
+        echo "Namespace created!"
         exit 0
       else
         exit 1
@@ -68,13 +68,19 @@ tasks:
          exit 1
       fi
   verify_network_policies:
+    # we don't want this to start firing too soon
+    needs:
+      - verify_labels
+    # default timeout is 10-15 seconds, and we want the checking loop to run faster than that
+    timeout_seconds: 7
     run: |
-      # Get a frontend pod and the backend pod with role=backend
-
+      # Get a frontend pod and one backend pod with role=backend and one backend pod without a role
       FRONTEND_POD=$(kubectl get pod -n app -l role=frontend -o jsonpath='{.items[0].metadata.name}')
       FRONTEND_POD_IP=$(kubectl get pod -n app -l role=frontend -o jsonpath='{.items[0].status.podIP}')
+
       BACKEND_POD_WITH_ROLE=$(kubectl get pod -n app -l role=backend -o jsonpath='{.items[0].metadata.name}')
       BACKEND_POD_WITH_ROLE_IP=$(kubectl get pod -n app -l role=backend -o jsonpath='{.items[0].status.podIP}')
+
       BACKEND_POD_WITHOUT_ROLE=$(kubectl get pod -n app -l "tier=api,role!=backend" -o jsonpath='{.items[0].metadata.name}')
       BACKEND_POD_WITHOUT_ROLE_IP=$(kubectl get pod -n app -l "tier=api,role!=backend" -o jsonpath='{.items[0].status.podIP}')
       
@@ -84,12 +90,13 @@ tasks:
       
       # Test connectivity from both types of backend pods to frontend pod
       BACKEND_WITH_ROLE_TO_FRONTEND=$(kubectl -n app exec $BACKEND_POD_WITH_ROLE -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $FRONTEND_POD_IP:80)
-      BACKEND_WITHOUT_ROLE_TO_FRONTEND=$(kubectl -n app exec $BACKEND_POD_WITHOUT_ROLE -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $FRONTEND_POD_IP:80 || echo "timeout")
+
+      BACKEND_WITHOUT_ROLE_TO_FRONTEND=$(kubectl exec -n app $BACKEND_POD_WITHOUT_ROLE -- curl -s --connect-timeout 5 $FRONTEND_POD_IP:80 2>&1 || true)
       
       if [ "$FRONTEND_TO_BACKEND" -eq 200 ] && \
          [ "$FRONTEND_TO_BACKEND_WITHOUT_ROLE" -eq 200 ] && \
          [ "$BACKEND_WITH_ROLE_TO_FRONTEND" -eq 200 ] && \
-         [ "$BACKEND_WITHOUT_ROLE_TO_FRONTEND" = "timeout" ]; then
+         [[ "$BACKEND_WITHOUT_ROLE_TO_FRONTEND" == *"command terminated"* ]]; then
          echo "Network policies configured correctly!"
          exit 0
       else
@@ -121,18 +128,18 @@ Good, the namespace is ready to go.
 ---
 :summary: Hint 1
 ---
-```bash
-# Create namespace
-kubectl create namespace app
-```
+Check the [documentation for creating namespaces](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-namespace-em-)
 ::
 
 Now, create two deployments in that namespace.
 
+
 1. Frontend:
    - Deployment "frontend" with 2 replicas running `nginx:1.20`
+   - Accessible on port 80
 2. Backend:
    - Deployment "backend" with 2 replicas running `leskis/default-go`
+   - Accessible on port 8000
 
 ::simple-task
 ---
@@ -150,11 +157,7 @@ Great! Both deployments are running correctly.
 ---
 :summary: Hint 2
 ---
-```bash
-# Create deployments
-kubectl create deployment frontend -n app --image=nginx:1.20 --replicas=2
-kubectl create deployment backend -n app --image=leskis/default-go --replicas=2
-```
+Check the [documentation for creating deployments](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-deployment-em-)
 ::
 
 Now, label the pods:
@@ -178,24 +181,22 @@ Perfect! All pods are properly labeled.
 ---
 :summary: Hint 3
 ---
+Check the [documentation for adding labels](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#label)
+::
+
+::hint-box
+---
+:summary: Hint 4
+---
 ```bash
-# Label all frontend pods
-kubectl label pods -n app -l app=frontend role=frontend
-
-# Label all backend pods with tier=api
-kubectl label pods -n app -l app=backend tier=api
-
 # Get the name of one backend pod
 BACKEND_POD=$(kubectl get pods -n app -l app=backend -o jsonpath='{.items[0].metadata.name}')
-
-# Add role=backend label to just that one pod
-kubectl label pod -n app $BACKEND_POD role=backend
 ```
 ::
 
-Finally, create network policies to ensure:
+Finally, create network policies to make sure:
 1. All frontend pods can send traffic to any backend pod with label `tier=api` on port 8000
-2. Only the backend pod with label role=backend can send traffic to frontend pods with label `role=frontend` on port 80
+2. Only the backend pod with label `role=backend` can send traffic to frontend pods with label `role=frontend` on port 80
 3. All other traffic should be denied by default
 
 ::simple-task
@@ -212,9 +213,9 @@ Excellent! The network policies are correctly configured and enforcing the desir
 
 ::hint-box
 ---
-:summary: Hint 4
+:summary: Hint 5
 ---
-Create two network policies:
+Create two network policies, one for the frontend => backend, and another from the backend => frontend. Here's the first one:
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -232,24 +233,6 @@ spec:
           role: frontend
     ports:
     - port: 8000
-      protocol: TCP
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: backend-to-frontend
-  namespace: app
-spec:
-  podSelector:
-    matchLabels:
-      role: frontend
-  ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          role: backend
-    ports:
-    - port: 80
       protocol: TCP
 ```
 ::
