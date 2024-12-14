@@ -48,11 +48,18 @@ tasks:
       else
         exit 1
       fi
-  verify_deployments:
+  verify_deployment_frontend:
     run: |
-      if [ $(kubectl get deployment -n app frontend -o jsonpath='{.status.replicas}') -eq 2 ] && \
-         [ $(kubectl get deployment -n app backend -o jsonpath='{.status.replicas}') -eq 2 ]; then
-         echo "Deployments created successfully!"
+      if [ $(kubectl get deployment -n app frontend -o jsonpath='{.status.replicas}') -eq 2 ]; then
+         echo "Frontend deployment created successfully!"
+         exit 0
+      else
+         exit 1
+      fi
+  verify_deployment_backend:
+    run: |
+      if [ $(kubectl get deployment -n app backend -o jsonpath='{.status.replicas}') -eq 2 ]; then
+         echo "Backend deploymenet created successfully!"
          exit 0
       else
          exit 1
@@ -144,13 +151,25 @@ Now, create two deployments in that namespace.
 ::simple-task
 ---
 :tasks: tasks
-:name: verify_deployments
+:name: verify_deployment_frontend
 ---
 #active
-Waiting for deployments to be created...
+Waiting for frontend deployment to be created...
 
 #completed
-Great! Both deployments are running correctly.
+Great! Frontend deployment is running correctly.
+::
+
+::simple-task
+---
+:tasks: tasks
+:name: verify_deployment_backend
+---
+#active
+Waiting for backend deployment to be created...
+
+#completed
+Great! Backend deployment is running correctly.
 ::
 
 ::hint-box
