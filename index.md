@@ -26,7 +26,7 @@ playgroundOptions:
 cover: __static__/pod-networking-with-labels.png
 
 createdAt: 2024-11-03
-updatedAt: 2024-12-10
+updatedAt: 2024-12-18
 
 difficulty: easy
 
@@ -36,7 +36,6 @@ categories:
 
 tagz:
   - cka
-  - kubernetes
   - network-policies
 
 tasks:
@@ -64,12 +63,26 @@ tasks:
       else
          exit 1
       fi
-  verify_labels:
+  verify_labels_all_frontend:
     run: |
-      if [ $(kubectl get pods -n app -l role=frontend --no-headers | wc -l) -eq 2 ] && \
-         [ $(kubectl get pods -n app -l tier=api --no-headers | wc -l) -eq 2 ] && \
-         [ $(kubectl get pods -n app -l "tier=api,!role" --no-headers | wc -l) -eq 1 ]; then
-         echo "Pod labels configured correctly!"
+      if [ $(kubectl get pods -n app -l role=frontend --no-headers | wc -l) -eq 2 ]; then
+         echo "Frontend pod labels configured correctly!"
+         exit 0
+      else
+         exit 1
+      fi
+  verify_labels_all_backend:
+    run: |
+      if [ $(kubectl get pods -n app -l tier=api --no-headers | wc -l) -eq 2 ]; then
+         echo "Backend pod labels configured correctly!"
+         exit 0
+      else
+         exit 1
+      fi
+  verify_labels_one_backend:
+    run: |
+      if [ $(kubectl get pods -n app -l "tier=api,!role" --no-headers | wc -l) -eq 1 ]; then
+         echo "Single backend pod label configured correctly!"
          exit 0
       else
          exit 1
@@ -77,7 +90,9 @@ tasks:
   verify_network_policies:
     # we don't want this to start firing too soon
     needs:
-      - verify_labels
+      - verify_labels_all_frontend
+      - verify_labels_all_backend
+      - verify_labels_one_backend
     # default timeout is 10-15 seconds, and we want the checking loop to run faster than that
     timeout_seconds: 7
     run: |
@@ -169,7 +184,7 @@ Great! Frontend deployment is running correctly.
 Waiting for backend deployment to be created...
 
 #completed
-Great! Backend deployment is running correctly.
+Alright! Backend deployment is running correctly.
 ::
 
 ::hint-box
@@ -187,13 +202,37 @@ Now, label the pods:
 ::simple-task
 ---
 :tasks: tasks
-:name: verify_labels
+:name: verify_labels_all_frontend
 ---
 #active
-Checking for correct pod labels...
+Checking for correct frontend pod labels...
 
 #completed
-Perfect! All pods are properly labeled.
+Nice! Both frontend pods are properly labeled with `role=frontend`.
+::
+
+::simple-task
+---
+:tasks: tasks
+:name: verify_labels_all_backend
+---
+#active
+Checking for correct backend pod labels...
+
+#completed
+Fantastic! Both backend pods are properly labeled with `tier=api`.
+::
+
+::simple-task
+---
+:tasks: tasks
+:name: verify_labels_one_backend
+---
+#active
+Checking for correct backend pod label...
+
+#completed
+Good! Only one backend pod is properly labeled with `role=backend`.
 ::
 
 ::hint-box
