@@ -142,10 +142,10 @@ Now, create two deployments in that namespace.
 
 
 1. Frontend:
-   - Deployment "frontend" with 2 replicas running `nginx:1.20`
+   - Deployment "frontend" with 2 replicas running `ghcr.io/iximiuz/labs/nginx:alpine`
    - Accessible on port 80
 2. Backend:
-   - Deployment "backend" with 2 replicas running `leskis/default-go`
+   - Deployment "backend" with 2 replicas running `ghcr.io/lpmi-13/default-go`
    - Accessible on port 8000
 
 ::simple-task
