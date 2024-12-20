@@ -2,7 +2,7 @@
 title: 'CKA Practice: Configure Network Policies To Restrict Traffic Between Pods'
 
 description: |
-  This exercise tests your ability to configure kubernetes network nolicies to make sure only pods with specific labels can communicate with each other.
+  This exercise tests your ability to configure kubernetes network policies to make sure only pods with specific labels can communicate with each other.
 
 kind: challenge
 
