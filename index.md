@@ -19,7 +19,10 @@ playgroundOptions:
       users:
       - name: root
         default: true
-        welcome: 'Welcome to the CKA networking exercise. Follow the instructions to configure secure pod communication.'
+        welcome: |
+          Welcome to the CKA networking exercise.
+
+          Follow the instructions to configure secure pod communication.
     - name: cplane-01
     - name: node-01
 
@@ -118,16 +121,16 @@ tasks:
 
       BACKEND_POD_WITHOUT_ROLE=$(kubectl get pod -n app -l "tier=api,role!=backend" -o jsonpath='{.items[0].metadata.name}')
       BACKEND_POD_WITHOUT_ROLE_IP=$(kubectl get pod -n app -l "tier=api,role!=backend" -o jsonpath='{.items[0].status.podIP}')
-      
+
       # Test connectivity from frontend to both backend pods
       FRONTEND_TO_BACKEND=$(kubectl -n app exec $FRONTEND_POD -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $BACKEND_POD_WITH_ROLE_IP:8000)
       FRONTEND_TO_BACKEND_WITHOUT_ROLE=$(kubectl -n app exec $FRONTEND_POD -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $BACKEND_POD_WITHOUT_ROLE_IP:8000)
-      
+
       # Test connectivity from both types of backend pods to frontend pod
       BACKEND_WITH_ROLE_TO_FRONTEND=$(kubectl -n app exec $BACKEND_POD_WITH_ROLE -- curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $FRONTEND_POD_IP:80)
 
       BACKEND_WITHOUT_ROLE_TO_FRONTEND=$(kubectl exec -n app $BACKEND_POD_WITHOUT_ROLE -- curl -s --connect-timeout 5 $FRONTEND_POD_IP:80 2>&1 || true)
-      
+
       if [ "$FRONTEND_TO_BACKEND" -eq 200 ] && \
          [ "$FRONTEND_TO_BACKEND_WITHOUT_ROLE" -eq 200 ] && \
          [ "$BACKEND_WITH_ROLE_TO_FRONTEND" -eq 200 ] && \
