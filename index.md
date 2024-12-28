@@ -48,6 +48,8 @@ tasks:
         exit 1
       fi
   verify_deployment_frontend:
+    needs:
+      - verify_namespace
     run: |
       if [ $(kubectl get deployment -n app frontend -o jsonpath='{.status.replicas}') -eq 2 ]; then
          echo "Frontend deployment created successfully!"
@@ -56,6 +58,8 @@ tasks:
          exit 1
       fi
   verify_deployment_backend:
+    needs:
+      - verify_namespace
     run: |
       if [ $(kubectl get deployment -n app backend -o jsonpath='{.status.replicas}') -eq 2 ]; then
          echo "Backend deploymenet created successfully!"
@@ -64,6 +68,9 @@ tasks:
          exit 1
       fi
   verify_labels_all_frontend:
+    needs:
+      - verify_deployment_frontend
+      - verify_deployment_backend
     run: |
       if [ $(kubectl get pods -n app -l role=frontend --no-headers | wc -l) -eq 2 ]; then
          echo "Frontend pod labels configured correctly!"
@@ -72,6 +79,9 @@ tasks:
          exit 1
       fi
   verify_labels_all_backend:
+    needs:
+      - verify_deployment_frontend
+      - verify_deployment_backend
     run: |
       if [ $(kubectl get pods -n app -l tier=api --no-headers | wc -l) -eq 2 ]; then
          echo "Backend pod labels configured correctly!"
@@ -80,6 +90,9 @@ tasks:
          exit 1
       fi
   verify_labels_one_backend:
+    needs:
+      - verify_deployment_frontend
+      - verify_deployment_backend
     run: |
       if [ $(kubectl get pods -n app -l "tier=api,!role" --no-headers | wc -l) -eq 1 ]; then
          echo "Single backend pod label configured correctly!"
